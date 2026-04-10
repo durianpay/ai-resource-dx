@@ -1,10 +1,10 @@
 ---
 name: pr-reviewer
 description: >
-  Review GitHub pull requests using the GitHub CLI (gh). Use this skill whenever the user mentions
+  Review GitHub pull requests using GitHub MCP tools. Use this skill whenever the user mentions
   PRs, pull requests, code review, reviewing changes, checking diffs, PR feedback, listing open PRs,
   or anything related to GitHub pull request workflows. This includes: listing PRs (open, closed, draft),
-  checking out a PR branch locally, reviewing code changes in a PR, summarizing PR diffs, and analyzing
+  reviewing code changes in a PR, summarizing PR diffs, and analyzing
   code quality in pull requests. For Go files, the review enforces Effective Go compliance.
   The skill also pulls Linear ticket context (via MCP) from the PR title or comments to validate
   that the code changes match the ticket's requirements and acceptance criteria.
@@ -15,15 +15,15 @@ description: >
 
 # PR Reviewer Skill
 
-Review GitHub pull requests from the command line using `gh` (GitHub CLI). This skill works globally — no need to be inside a specific repo directory since `gh` can target any repository via the `--repo` flag.
+Review GitHub pull requests using GitHub MCP tools. This skill works globally — MCP tools always take `owner` and `repo` as parameters, so there's no need to be inside a specific repo directory.
 
 All review output goes directly to the user in the conversation. Do NOT post comments, reviews, or any feedback directly on the PR in GitHub. The user will decide what to do with the review.
 
 ## Prerequisites
 
-- `gh` (GitHub CLI) must be installed and authenticated (`gh auth status` to verify)
-- Git must be installed for checkout operations
+- GitHub MCP server must be connected in Claude Code
 - Linear MCP server must be connected in Claude Code for ticket lookups
+- Git must be installed (only needed as fallback for local checkout when running tests/linters)
 
 ## Core Workflows
 
@@ -31,57 +31,96 @@ All review output goes directly to the user in the conversation. Do NOT post com
 
 List open PRs for a repository. Always start here if the user hasn't specified a PR number.
 
-```bash
-# List open PRs for a specific repo
-gh pr list --repo <owner/repo>
-
-# List with more detail
-gh pr list --repo <owner/repo> --limit 20 --state open --json number,title,author,createdAt,headRefName,labels,reviewDecision
-
-# Filter by state: open, closed, merged, all
-gh pr list --repo <owner/repo> --state all
-
-# Filter by author
-gh pr list --repo <owner/repo> --author <username>
-
-# Filter by label
-gh pr list --repo <owner/repo> --label "bug"
-
-# Search PRs with query
-gh pr list --repo <owner/repo> --search "fix login"
+**Basic listing:**
+```
+mcp__github__list_pull_requests(owner: "<owner>", repo: "<repo>", state: "open")
 ```
 
-If the user provides a repo URL like `https://github.com/owner/repo`, extract `owner/repo` from it.
+**With pagination:**
+```
+mcp__github__list_pull_requests(owner: "<owner>", repo: "<repo>", state: "open", perPage: 20)
+```
 
-If the user doesn't specify a repo and you're inside a git repository, `gh` will auto-detect it — you can omit `--repo`.
+**Filter by state** (open, closed, all):
+```
+mcp__github__list_pull_requests(owner: "<owner>", repo: "<repo>", state: "all")
+```
+
+**Filter by author:**
+```
+mcp__github__search_pull_requests(query: "author:<username>", owner: "<owner>", repo: "<repo>")
+```
+
+**Filter by label:**
+```
+mcp__github__search_pull_requests(query: "label:bug", owner: "<owner>", repo: "<repo>")
+```
+
+**Search PRs by keyword:**
+```
+mcp__github__search_pull_requests(query: "fix login", owner: "<owner>", repo: "<repo>")
+```
+
+If the user provides a repo URL like `https://github.com/owner/repo`, extract `owner` and `repo` from it.
+
+If the user doesn't specify a repo and you're inside a git repository, extract `owner` and `repo` from the git remote URL (`git remote -v`).
 
 ### 2. View PR Details
 
 Get full context before reviewing.
 
-```bash
-# View PR summary (title, body, status, checks, reviewers)
-gh pr view <number> --repo <owner/repo>
-
-# View as JSON for structured data
-gh pr view <number> --repo <owner/repo> --json title,body,author,baseRefName,headRefName,files,reviews,comments,state,additions,deletions,changedFiles
-
-# View the full diff
-gh pr diff <number> --repo <owner/repo>
+**PR summary** (title, body, status, author, branches, additions, deletions):
+```
+mcp__github__pull_request_read(method: "get", owner: "<owner>", repo: "<repo>", pullNumber: <number>)
 ```
 
-### 3. Checkout a PR Locally
+**Changed files list:**
+```
+mcp__github__pull_request_read(method: "get_files", owner: "<owner>", repo: "<repo>", pullNumber: <number>)
+```
 
-When you need to test or deeply inspect the code, check out the PR branch. This is especially useful for running linters, tests, or exploring files that aren't in the diff.
+**Full diff:**
+```
+mcp__github__pull_request_read(method: "get_diff", owner: "<owner>", repo: "<repo>", pullNumber: <number>)
+```
 
+**PR comments:**
+```
+mcp__github__pull_request_read(method: "get_comments", owner: "<owner>", repo: "<repo>", pullNumber: <number>)
+```
+
+**Review comments (threaded, on code):**
+```
+mcp__github__pull_request_read(method: "get_review_comments", owner: "<owner>", repo: "<repo>", pullNumber: <number>)
+```
+
+**Reviews:**
+```
+mcp__github__pull_request_read(method: "get_reviews", owner: "<owner>", repo: "<repo>", pullNumber: <number>)
+```
+
+**CI/CD check runs:**
+```
+mcp__github__pull_request_read(method: "get_check_runs", owner: "<owner>", repo: "<repo>", pullNumber: <number>)
+```
+
+### 3. Reading Full File Contents
+
+When you need to see the full file beyond what the diff shows, read files directly from the PR branch using MCP — no local clone needed.
+
+**Read a file from the PR branch:**
+```
+mcp__github__get_file_contents(owner: "<owner>", repo: "<repo>", path: "<file-path>", ref: "refs/pull/<number>/head")
+```
+
+This lets you inspect complete file context without cloning the repository.
+
+**Fallback — Local checkout (only when you need to run tests, linters, or build locally):**
 ```bash
-# If already inside a clone of the repo
-gh pr checkout <number> --repo <owner/repo>
-
-# If not inside a clone, clone first then checkout
-gh repo clone <owner/repo> /tmp/<repo-name> -- --depth=1
-cd /tmp/<repo-name>
-gh pr checkout <number>
+git clone --depth=1 https://github.com/<owner>/<repo>.git /tmp/<repo>
+cd /tmp/<repo>
+git fetch origin pull/<number>/head:pr-<number>
+git checkout pr-<number>
 ```
 
 After checkout, you can run tests, lint, build, or explore the codebase directly.
@@ -92,22 +131,20 @@ Before reviewing code, pull the Linear ticket to understand what the PR is suppo
 
 **Step A — Extract the ticket identifier from the PR.**
 
-The PR title follows the pattern `[TICKET-ID]: description`. Extract the ticket ID using a regex match on the title. Common formats:
+The PR title follows the pattern `[TICKET-ID]: description`. First, get the PR details:
+```
+mcp__github__pull_request_read(method: "get", owner: "<owner>", repo: "<repo>", pullNumber: <number>)
+```
+
+Extract the ticket ID from the title by matching the pattern `[A-Z]+-[0-9]+`. Common formats:
 
 - `[DGAS-544]: add boolean flag...` → ticket ID is `DGAS-544`
 - `[TEAM-123] fix login flow` → ticket ID is `TEAM-123`
 - `DGAS-544: add boolean flag` → ticket ID is `DGAS-544` (brackets optional)
 
-```bash
-# Get the PR title
-gh pr view <number> --repo <owner/repo> --json title --jq '.title'
+If no ticket ID is found in the title, check the PR body (included in the `get` response) and comments for Linear links:
 ```
-
-Extract the ticket ID by matching the pattern `[A-Z]+-[0-9]+` from the title. If no ticket ID is found in the title, check the PR body and comments — a Linear bot often posts a comment with a link like `https://linear.app/team/issue/DGAS-544/...`.
-
-```bash
-# Get PR body and comments to look for Linear links
-gh pr view <number> --repo <owner/repo> --json body,comments --jq '.body, .comments[].body'
+mcp__github__pull_request_read(method: "get_comments", owner: "<owner>", repo: "<repo>", pullNumber: <number>)
 ```
 
 Look for Linear URLs matching `linear.app/.*/issue/([A-Z]+-[0-9]+)` in the body or comments.
@@ -144,24 +181,22 @@ This checklist is used in Step C of the code review (section 5 below) to validat
 This is the core of the skill. All review output is presented directly to the user — never post anything to GitHub.
 
 **Step A — Get the diff and changed files:**
-```bash
-gh pr diff <number> --repo <owner/repo>
-gh pr view <number> --repo <owner/repo> --json files --jq '.files[].path'
+```
+mcp__github__pull_request_read(method: "get_diff", owner: "<owner>", repo: "<repo>", pullNumber: <number>)
+mcp__github__pull_request_read(method: "get_files", owner: "<owner>", repo: "<repo>", pullNumber: <number>)
 ```
 
-**Step B — If the diff is large or you need full file context, checkout the PR:**
-```bash
-gh repo clone <owner/repo> /tmp/<repo-name> -- --depth=1
-cd /tmp/<repo-name>
-gh pr checkout <number>
+**Step B — If the diff is large or you need full file context, read files from the PR branch:**
 ```
-Then read the full files to understand context beyond the diff hunks.
+mcp__github__get_file_contents(owner: "<owner>", repo: "<repo>", path: "<file-path>", ref: "refs/pull/<number>/head")
+```
+Read the full files to understand context beyond the diff hunks. No clone needed.
 
 **Step C — Analyze the changes.** For each file, evaluate:
 
 - **Correctness**: Logic errors, off-by-one mistakes, null/undefined risks, race conditions, unhandled edge cases.
 - **Security**: SQL injection, XSS, hardcoded secrets, insecure dependencies, auth bypasses, path traversal.
-- **Performance**: N+1 queries, unnecessary allocations in hot paths, missing indexes, O(n²) where O(n) is possible.
+- **Performance**: N+1 queries, unnecessary allocations in hot paths, missing indexes, O(n^2) where O(n) is possible.
 - **Readability**: Unclear naming, overly complex logic, missing comments for non-obvious code, dead code.
 - **Testing**: Are new code paths covered by tests? Are edge cases handled? Are tests meaningful or just covering lines?
 - **Best practices**: Does the code follow the project's conventions? Deprecated API usage? Code duplication?
@@ -208,12 +243,12 @@ When flagging Effective Go violations, cite the specific rule and show the idiom
 
 ### Ticket Alignment
 <Does the PR satisfy the ticket requirements? Call out:>
-- ✅ Requirements met: <list what's covered>
-- ❌ Requirements missing: <list what's not addressed, if any>
-- ⚠️ Scope concerns: <unrelated changes or scope creep, if any>
+- Requirements met: <list what's covered>
+- Requirements missing: <list what's not addressed, if any>
+- Scope concerns: <unrelated changes or scope creep, if any>
 
 ### Overall Assessment
-<✅ Looks good / ⚠️ Needs work / 🚨 Major concerns>
+<Looks good / Needs work / Major concerns>
 
 ### Critical Issues (must fix before merge)
 - **[file:line]** Description of the issue
@@ -240,22 +275,19 @@ If there are no issues in a category, omit that section. If there are no Go file
 
 ## Working Globally (No Repo Directory Required)
 
-This skill is designed to work from anywhere. The `--repo <owner/repo>` flag lets most `gh pr` commands run without being in a project directory.
+This skill is designed to work from anywhere. All MCP tools take `owner` and `repo` as explicit parameters, so there is no dependency on the current working directory.
 
-For checkout operations (running tests, deep file inspection), clone to a temp directory:
-
-```bash
-gh repo clone <owner/repo> /tmp/<repo-name> -- --depth=1
-cd /tmp/<repo-name>
-gh pr checkout <number>
+To read files from a PR branch without cloning:
+```
+mcp__github__get_file_contents(owner: "<owner>", repo: "<repo>", path: "<file-path>", ref: "refs/pull/<number>/head")
 ```
 
-Use shallow clones (`--depth=1`) to keep things fast when full history isn't needed.
+Use shallow clones only when you need to run tests or linters locally (see Section 3 fallback).
 
 ## Handling Ambiguity
 
-- If the user says "review PR 42" but hasn't specified a repo, check if you're in a git repo first (`git remote -v`). If not, ask which repository they mean.
-- If the user says "check my PRs", ask if they mean PRs they authored or PRs assigned to them for review, and which repo(s).
+- If the user says "review PR 42" but hasn't specified a repo, check if you're in a git repo first (`git remote -v`) and extract owner/repo from the remote URL. If not in a git repo, ask which repository they mean.
+- If the user says "check my PRs", ask if they mean PRs they authored or PRs assigned to them for review, and which repo(s). Use `mcp__github__get_me` to get the authenticated user's username.
 - If a diff is very large (50+ files), summarize at a high level first and ask if the user wants a deep dive into specific files or areas.
 - If no Linear ticket ID is found in the title, body, or comments, proceed with the review without ticket context but mention to the user that no ticket was linked.
 
@@ -270,7 +302,8 @@ Use shallow clones (`--depth=1`) to keep things fast when full history isn't nee
 
 ## Tips
 
-- For large diffs, focus on specific files: `gh pr diff <number> --repo <owner/repo> -- <specific-file>`
-- Use `--json` and `--jq` flags to extract structured data for programmatic use
-- Check CI status: `gh pr checks <number> --repo <owner/repo>`
-- View existing review comments: `gh pr view <number> --repo <owner/repo> --comments`
+- For large PRs, paginate file lists: `mcp__github__pull_request_read(method: "get_files", ..., perPage: 50, page: 2)`
+- Check CI status: `mcp__github__pull_request_read(method: "get_check_runs", ...)`
+- View review comment threads: `mcp__github__pull_request_read(method: "get_review_comments", ...)`
+- Get authenticated user info: `mcp__github__get_me()`
+- Read specific files on the PR branch: `mcp__github__get_file_contents(owner, repo, path, ref: "refs/pull/<number>/head")`
