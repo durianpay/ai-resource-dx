@@ -6,6 +6,9 @@ description: "Run the full development pipeline: go-architect â†’ go-developer â
 
 Execute the full agent pipeline for the given task. Follow these steps strictly in order.
 
+## Token Efficiency
+All agents in this pipeline use caveman mode (lite for architect/reviewer, ultra for developer) to minimize token usage. Prose is compressed; code blocks, technical terms, and document structure stay intact.
+
 ## Phase 1: Architecture
 Use the `go-architect` sub-agent to:
 1. Analyze the task requirements
@@ -19,9 +22,9 @@ Wait for the architect to finish. Read the spec and verify it's complete before 
 Use the `go-developer` sub-agent to:
 1. Read the spec from Phase 1
 2. Implement the code following spec exactly
-2. Write the unit tests for code implemented
+3. Write the unit tests for code implemented
 4. Report any deviations from spec
-5. Produce a unit test result at `docs/test/{task-slug}.md`
+5. Produce a test report at `docs/test/{task-slug}.md`
 
 Wait for the go-developer to finish. Read the test report before proceeding.
 
@@ -32,11 +35,11 @@ Use the `go-reviewer` sub-agent to:
 3. Write review to `docs/reviews/{task-slug}-review.md`
 4. Deliver verdict: APPROVE or REQUEST_CHANGES
 
-## Phase 5: Fix Loop (if needed)
+## Phase 4: Fix Loop (if needed)
 If reviewer returns REQUEST_CHANGES:
 1. Send the review feedback to the `go-developer` sub-agent for fixes
-3. Re-run the `go-reviewer` sub-agent
-4. Repeat until APPROVED (max 2 iterations, then escalate to human)
+2. Re-run the `go-reviewer` sub-agent
+3. Repeat until APPROVED (max 2 iterations, then escalate to human)
 
 ## Completion
 When approved, summarize:
