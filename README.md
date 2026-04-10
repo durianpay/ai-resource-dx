@@ -21,7 +21,7 @@ git clone <repo-url> ~/dx-ai-resource
 # Symlink agents, skills, and commands into ~/.claude/
 ln -s ~/dx-ai-resource/agents ~/.claude/agents
 ln -s ~/dx-ai-resource/skills ~/.claude/skills
-ln -s ~/dx-ai-resource/command ~/.claude/command
+ln -s ~/dx-ai-resource/commands ~/.claude/commands
 ```
 
 This makes the agents, skills, and commands available globally across all your projects.
@@ -34,9 +34,10 @@ Resulting structure:
     go-architect.md
     go-developer.md
     go-reviewer.md
-  command/
+  commands/
     workflow.md
   skills/
+    caveman/
     go-error-handling/
     go-pattern/
     golang-code-style/
@@ -85,7 +86,7 @@ Agents are specialized sub-agents that Claude Code spawns for specific roles. Ea
 - Specifies error handling strategy per component
 - Writes a structured spec to `docs/specs/`
 
-**Skills loaded:** `spec-writing`, `go-pattern`, `go-error-handling`, `golang-design-patterns`
+**Skills loaded:** `spec-writing`, `go-pattern`, `go-error-handling`, `golang-design-patterns`, `golang-structs-interfaces`, `caveman`
 
 **Rules:** Never writes implementation code. Never modifies source files. Read-only.
 
@@ -108,7 +109,7 @@ Agents are specialized sub-agents that Claude Code spawns for specific roles. Ea
 4. Runs `go build`, `go vet`, `go test`, `go fmt`
 5. Reports any deviations from spec
 
-**Skills loaded:** `golang-data-structures`, `golang-performance`, `golang-design-patterns`, `golang-linter`, `go-pattern`, `golang-structs-interfaces`, `go-error-handling`, `golang-code-style`, `golang-testing`, `golang-concurrency`
+**Skills loaded:** `golang-data-structures`, `golang-performance`, `golang-linter`, `go-pattern`, `golang-structs-interfaces`, `go-error-handling`, `golang-code-style`, `golang-testing`, `golang-concurrency`, `caveman`
 
 **Rules:** Never deviates from spec without documenting why. Never makes design decisions. Flags ambiguities instead.
 
@@ -131,7 +132,7 @@ Agents are specialized sub-agents that Claude Code spawns for specific roles. Ea
 4. Writes review to `docs/reviews/`
 5. Delivers verdict: **APPROVE** or **REQUEST_CHANGES**
 
-**Skills loaded:** `go-error-handling`, `golang-data-structures`, `golang-performance`, `golang-design-patterns`, `golang-linter`, `go-pattern`, `golang-structs-interfaces`, `golang-code-style`, `golang-testing`, `golang-concurrency`
+**Skills loaded:** `go-error-handling`, `golang-data-structures`, `golang-performance`, `golang-design-patterns`, `golang-linter`, `go-pattern`, `golang-structs-interfaces`, `golang-code-style`, `golang-testing`, `golang-concurrency`, `caveman`
 
 **Rules:** Never modifies source files. Never approves code that doesn't compile. References file:line in all feedback.
 
@@ -200,6 +201,20 @@ User-invocable skills can be called with a slash command:
 ```
 
 Skills also activate automatically when you mention related topics in conversation.
+
+---
+
+## Templates
+
+Standardized templates for creating new agents, skills, and commands are in the `templates/` directory:
+
+| Template | Path | Use when |
+|----------|------|----------|
+| Agent | `templates/agent-template.md` | Creating a new specialized sub-agent |
+| Skill | `templates/skill-template.md` | Creating a new knowledge or workflow skill |
+| Command | `templates/command-template.md` | Creating a new user-invocable pipeline command |
+
+Templates define the required sections, ordering, and frontmatter fields. Follow the template structure to keep agents, skills, and commands consistent across the project.
 
 ---
 

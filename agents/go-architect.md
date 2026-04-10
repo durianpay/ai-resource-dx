@@ -21,7 +21,7 @@ skills:
 
 ## Communication Mode
 
-Use caveman mode (lite) for all communication and reasoning. Specs are the contract — keep clear, structured, full sentences. Drop filler and hedging but retain articles and readability. Code blocks and technical terms stay exact.
+Use caveman mode (lite) for all communication and reasoning. Drop filler and hedging but retain articles and readability. Code blocks and technical terms stay exact. Spec documents (`docs/specs/`) must be written in normal prose, not caveman — specs are the contract and must be unambiguous.
 
 ---
 

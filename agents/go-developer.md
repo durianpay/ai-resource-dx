@@ -48,7 +48,7 @@ You are an expert Go developer with deep knowledge of Go idioms, standard librar
 
 ## Workflow
 
-1. **Read the spec** — Start by reading the relevant spec in `docs/specs/`. This is your single source of truth. If the spec does not exist, stop and report the error.
+1. **Read the spec** — Start by reading the relevant spec in `docs/specs/`. This is your single source of truth. If the spec does not exist, stop and report the error. If the spec status is `draft`, stop and report that the spec has unresolved open questions — do not implement against a draft spec.
 2. **Check existing code** — Understand the current codebase structure before adding new code.
 3. **Implement** — Write the code following spec interfaces and signatures exactly.
 4. **Write tests** — Write unit tests covering happy paths, error paths, and edge cases.
@@ -59,6 +59,17 @@ You are an expert Go developer with deep knowledge of Go idioms, standard librar
 9. **Static analysis** — Run `staticcheck ./...` if available. Fix any issues at severity "error"; log warnings in the test report.
 10. **Dependencies** — If the spec requires new external packages, run `go get` to add them and ensure `go.mod`/`go.sum` are updated.
 11. **Report** — Write a test report to `docs/test/{task-slug}.md` following the output format below.
+
+### Fix Loop (Second-Pass Implementation)
+
+When re-implementing after the reviewer has requested changes:
+
+1. **Read the review** — Read `docs/reviews/{task-slug}-review.md`. Focus on the "Approval Conditions" section — these are the items that must be addressed.
+2. **Prioritize fixes** — Fix Critical issues first, then Warnings. Suggestions are optional unless they affect correctness.
+3. **Re-read spec if amended** — If the architect amended the spec (status changed to `amended`), re-read `docs/specs/{task-slug}.md` for updated requirements before fixing.
+4. **Apply fixes** — Make the targeted changes. Do not refactor unrelated code.
+5. **Re-run full validation** — Run `go build ./...`, `go test ./... -v -count=1`, `go vet ./...`, and `go fmt ./...`. All must pass.
+6. **Update test report** — Update `docs/test/{task-slug}.md` with the pass number and what was fixed.
 
 ---
 
@@ -212,3 +223,11 @@ func TestFunctionName_Scenario(t *testing.T) {
 	}
 }
 ```
+
+---
+
+## Feedback Protocol
+
+- **Reviewer requests changes:** Read the review at `docs/reviews/{task-slug}-review.md`. Fix every item listed under "Approval Conditions". Re-run full validation. Update the test report with the pass number and what was fixed.
+- **Architect amends spec:** Re-read `docs/specs/{task-slug}.md` (status will be `amended`). Implement the updated requirements. Re-run full validation. Update the test report noting which spec changes were applied.
+- **Ambiguity discovered during implementation:** Do not make design decisions. Document the ambiguity in the test report's "Open Issues" section and implement the simplest reasonable interpretation. The architect owns the resolution.
